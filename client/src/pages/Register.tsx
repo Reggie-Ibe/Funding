@@ -18,9 +18,6 @@ import {
   FormHelperText,
   useTheme,
   Divider,
-  RadioGroup,
-  FormControlLabel,
-  Radio,
   SelectChangeEvent
 } from '@mui/material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
@@ -138,7 +135,12 @@ const Register: React.FC = () => {
     
     try {
       await register(formData);
-      navigate('/login', { state: { from: 'register', message: 'Registration successful. Please wait for admin verification before logging in.' } });
+      navigate('/login', { 
+        state: { 
+          from: 'register', 
+          message: 'Registration successful. Please wait for admin verification before logging in.' 
+        } 
+      });
     } catch (err: any) {
       setRegisterError(err.response?.data?.message || 'An error occurred during registration');
     } finally {
@@ -153,6 +155,7 @@ const Register: React.FC = () => {
   const handleClickShowConfirmPassword = () => {
     setShowConfirmPassword(!showConfirmPassword);
   };
+
   return (
     <Box
       sx={{

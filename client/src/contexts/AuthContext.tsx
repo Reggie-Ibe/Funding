@@ -1,140 +1,139 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+// client/src/contexts/AuthContext.tsx
+import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import { authService } from '../services/ApiService';
 
-// Define the User type from your system
-type User = {
+interface User {
   user_id: string;
   email: string;
   full_name: string;
-  role: 'Admin' | 'Innovator' | 'Investor' | 'EscrowManager';
-  status: 'PendingApproval' | 'Verified' | 'Rejected' | 'Suspended';
-};
+  role: string;
+  status: string;
+}
 
-// Define the context value type
-type AuthContextType = {
+interface AuthContextType {
   user: User | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
+  loading: boolean;
+  error: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (userData: any) => Promise<void>;
   logout: () => void;
-  error: string | null;
-};
+  updateUserProfile: (profileData: any) => Promise<void>;
+  changePassword: (passwordData: any) => Promise<void>;
+}
 
-// Create the context with a default value
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  isAuthenticated: false,
-  isLoading: true,
-  login: async () => {},
-  register: async () => {},
-  logout: () => {},
-  error: null,
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Custom hook to use the auth context
-export const useAuth = () => useContext(AuthContext);
-
-// Auth Provider component
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Base API URL with fallback
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5050';
-
-  // Check if user is already logged in on mount
+  // Check if user is already logged in on initial load
   useEffect(() => {
     const checkAuth = async () => {
-      setIsLoading(true);
-      
-      // Get the token from localStorage
-      const token = localStorage.getItem('token');
-      
-      if (token) {
-        try {
-          // Set the token in axios defaults
-          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-          
-          // Fetch user data
-          const response = await axios.get(`${apiUrl}/api/users/me`);
-          
-          if (response.data) {
-            setUser(response.data);
-          }
-        } catch (err) {
-          // If there's an error, log the user out
-          localStorage.removeItem('token');
-          delete axios.defaults.headers.common['Authorization'];
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          const userData = await authService.getProfile();
+          setUser(userData);
         }
+      } catch (err) {
+        console.error('Auth check failed:', err);
+        localStorage.removeItem('token');
+      } finally {
+        setLoading(false);
       }
-      
-      setIsLoading(false);
     };
-    
+
     checkAuth();
-  }, [apiUrl]);
+  }, []);
 
-  // Login function
   const login = async (email: string, password: string) => {
+    setLoading(true);
     setError(null);
     try {
-      const response = await axios.post(`${apiUrl}/api/auth/login`, {
-        email,
-        password,
-      });
+      const { token, user } = await authService.login(email, password);
       
-      // Store the token in localStorage
-      localStorage.setItem('token', response.data.token);
+      // Store token
+      localStorage.setItem('token', token);
       
-      // Set the token in axios defaults
-      axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-      
-      // Set the user
-      setUser(response.data.user);
+      // Set user in state
+      setUser(user);
     } catch (err: any) {
-      console.error('Login error:', err);
-      setError(err.response?.data?.message || 'An error occurred during login');
+      setError(err.response?.data?.message || 'Login failed. Please try again.');
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Register function
   const register = async (userData: any) => {
+    setLoading(true);
     setError(null);
     try {
-      await axios.post(`${apiUrl}/api/auth/register`, userData);
-      // Note: We don't automatically log the user in after registration because they need to be approved
+      await authService.register(userData);
     } catch (err: any) {
-      console.error('Registration error:', err);
-      setError(err.response?.data?.message || 'An error occurred during registration');
+      setError(err.response?.data?.message || 'Registration failed. Please try again.');
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Logout function
   const logout = () => {
-    // Remove the token from localStorage
     localStorage.removeItem('token');
-    
-    // Remove the token from axios defaults
-    delete axios.defaults.headers.common['Authorization'];
-    
-    // Clear the user
     setUser(null);
   };
 
-  // The context value
-  const value = {
-    user,
-    isAuthenticated: !!user,
-    isLoading,
-    login,
-    register,
-    logout,
-    error,
+  const updateUserProfile = async (profileData: any) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const updatedUser = await authService.updateProfile(profileData);
+      setUser(updatedUser);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to update profile. Please try again.');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  const changePassword = async (passwordData: any) => {
+    setLoading(true);
+    setError(null);
+    try {
+      await authService.changePassword(passwordData);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to change password. Please try again.');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        error,
+        login,
+        register,
+        logout,
+        updateUserProfile,
+        changePassword
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };

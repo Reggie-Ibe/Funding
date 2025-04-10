@@ -26,6 +26,8 @@ import {
   IconButton,
   styled,
   useTheme,
+  Alert,
+  CircularProgress,
 } from '@mui/material';
 import { 
   ArrowBack, 
@@ -40,6 +42,7 @@ import {
 } from '@mui/icons-material';
 import AppLayout from '../components/layout/AppLayout';
 import { useAuth } from '../contexts/AuthContext';
+import { CreateProjectProvider, useCreateProject } from '../contexts/CreateProjectContext';
 
 // Styled components
 const GradientDivider = styled(Divider)(({ theme }) => ({
@@ -111,299 +114,80 @@ const categories = [
   'Other',
 ];
 
-const CreateProject: React.FC = () => {
+// CreateProject wrapper component to provide context
+const CreateProjectWrapper: React.FC = () => (
+  <CreateProjectProvider>
+    <CreateProjectForm />
+  </CreateProjectProvider>
+);
+
+// Main form component
+const CreateProjectForm: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { 
+    formData, 
+    currentStep, 
+    loading, 
+    error, 
+    setFormValue, 
+    nextStep, 
+    prevStep, 
+    addMilestone, 
+    removeMilestone, 
+    updateMilestone, 
+    addTeamMember, 
+    removeTeamMember, 
+    updateTeamMember, 
+    addDocuments, 
+    removeDocument, 
+    submitProject,
+    validateCurrentStep,
+    validationErrors
+  } = useCreateProject();
   
-  const [activeStep, setActiveStep] = useState(0);
-  const [formData, setFormData] = useState({
-    title: '',
-    category: '',
-    short_description: '',
-    full_description: '',
-    impact_statement: '',
-    target_location: '',
-    duration_months: 12,
-    selected_sdgs: [] as string[],
-    funding_goal: 0,
-    min_investment: 1000,
-    milestones: [
-      {
-        title: '',
-        description: '',
-        expected_completion_date: '',
-        funding_percentage: 0,
-        verification_method: '',
-      }
-    ],
-    documents: [] as File[],
-    team_members: [
-      {
-        name: '',
-        role: '',
-        bio: '',
-      }
-    ],
-  });
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
-  
-  // Handle form changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name as string]: value,
-    });
-    
-    // Clear validation error when field is edited
-    if (formErrors[name as string]) {
-      setFormErrors({
-        ...formErrors,
-        [name as string]: '',
-      });
-    }
-  };
-  
-  // Handle select changes for category
-  const handleCategoryChange = (event: SelectChangeEvent<string>) => {
-    const { value } = event.target;
-    setFormData({
-      ...formData,
-      category: value,
-    });
-    
-    if (formErrors.category) {
-      setFormErrors({
-        ...formErrors,
-        category: '',
-      });
-    }
-  };
-  
+  // Redirect non-innovators
+  if (user?.role !== 'Innovator') {
+    return (
+      <AppLayout>
+        <Alert severity="error" sx={{ mb: 3 }}>
+          Only Innovators can create projects. Please contact support if you believe this is an error.
+        </Alert>
+        <Button
+          variant="contained"
+          startIcon={<ArrowBack />}
+          onClick={() => navigate('/dashboard')}
+        >
+          Back to Dashboard
+        </Button>
+      </AppLayout>
+    );
+  }
+
   // Handle SDG selection
   const handleSDGChange = (event: SelectChangeEvent<typeof formData.selected_sdgs>) => {
     const { target: { value } } = event;
-    setFormData({
-      ...formData,
-      selected_sdgs: typeof value === 'string' ? value.split(',') : value,
-    });
+    setFormValue('selected_sdgs', typeof value === 'string' ? value.split(',') : value);
   };
-  
-  // Handle milestone changes
-  const handleMilestoneChange = (index: number, field: string, value: any) => {
-    const updatedMilestones = [...formData.milestones];
-    updatedMilestones[index] = {
-      ...updatedMilestones[index],
-      [field]: value,
-    };
-    
-    setFormData({
-      ...formData,
-      milestones: updatedMilestones,
-    });
-  };
-  
-  // Add a new milestone
-  const addMilestone = () => {
-    setFormData({
-      ...formData,
-      milestones: [
-        ...formData.milestones,
-        {
-          title: '',
-          description: '',
-          expected_completion_date: '',
-          funding_percentage: 0,
-          verification_method: '',
-        }
-      ],
-    });
-  };
-  
-  // Remove a milestone
-  const removeMilestone = (index: number) => {
-    const updatedMilestones = [...formData.milestones];
-    updatedMilestones.splice(index, 1);
-    
-    setFormData({
-      ...formData,
-      milestones: updatedMilestones,
-    });
-  };
-  
-  // Handle team member changes
-  const handleTeamMemberChange = (index: number, field: string, value: string) => {
-    const updatedTeamMembers = [...formData.team_members];
-    updatedTeamMembers[index] = {
-      ...updatedTeamMembers[index],
-      [field]: value,
-    };
-    
-    setFormData({
-      ...formData,
-      team_members: updatedTeamMembers,
-    });
-  };
-  
-  // Add a new team member
-  const addTeamMember = () => {
-    setFormData({
-      ...formData,
-      team_members: [
-        ...formData.team_members,
-        {
-          name: '',
-          role: '',
-          bio: '',
-        }
-      ],
-    });
-  };
-  
-  // Remove a team member
-  const removeTeamMember = (index: number) => {
-    const updatedTeamMembers = [...formData.team_members];
-    updatedTeamMembers.splice(index, 1);
-    
-    setFormData({
-      ...formData,
-      team_members: updatedTeamMembers,
-    });
-  };
-  
+
   // Handle file uploads
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setFormData({
-        ...formData,
-        documents: [...formData.documents, ...Array.from(e.target.files)],
-      });
+      addDocuments(e.target.files);
     }
-  };
-  
-  // Remove a document
-  const removeDocument = (index: number) => {
-    const updatedDocuments = [...formData.documents];
-    updatedDocuments.splice(index, 1);
-    
-    setFormData({
-      ...formData,
-      documents: updatedDocuments,
-    });
-  };
-  
-  // Validate the current step
-  const validateStep = () => {
-    const errors: Record<string, string> = {};
-    
-    switch (activeStep) {
-      case 0: // Basic Information
-        if (!formData.title.trim()) {
-          errors.title = 'Project title is required';
-        }
-        if (!formData.category) {
-          errors.category = 'Category is required';
-        }
-        if (!formData.short_description.trim()) {
-          errors.short_description = 'Short description is required';
-        } else if (formData.short_description.length > 200) {
-          errors.short_description = 'Short description must be 200 characters or less';
-        }
-        break;
-        
-      case 1: // Project Details
-        if (!formData.full_description.trim()) {
-          errors.full_description = 'Full description is required';
-        }
-        if (!formData.impact_statement.trim()) {
-          errors.impact_statement = 'Impact statement is required';
-        }
-        if (formData.selected_sdgs.length === 0) {
-          errors.selected_sdgs = 'At least one SDG must be selected';
-        }
-        if (!formData.target_location.trim()) {
-          errors.target_location = 'Target location is required';
-        }
-        break;
-        
-      case 2: // Funding & Milestones
-        if (formData.funding_goal <= 0) {
-          errors.funding_goal = 'Funding goal must be greater than 0';
-        }
-        if (formData.min_investment <= 0) {
-          errors.min_investment = 'Minimum investment must be greater than 0';
-        }
-        if (formData.min_investment > formData.funding_goal) {
-          errors.min_investment = 'Minimum investment cannot be greater than funding goal';
-        }
-        
-        // Validate milestones
-        let totalPercentage = 0;
-        formData.milestones.forEach((milestone, index) => {
-          if (!milestone.title.trim()) {
-            errors[`milestone_${index}_title`] = 'Milestone title is required';
-          }
-          if (!milestone.description.trim()) {
-            errors[`milestone_${index}_description`] = 'Milestone description is required';
-          }
-          if (!milestone.expected_completion_date) {
-            errors[`milestone_${index}_date`] = 'Expected completion date is required';
-          }
-          if (milestone.funding_percentage <= 0) {
-            errors[`milestone_${index}_percentage`] = 'Funding percentage must be greater than 0';
-          }
-          
-          totalPercentage += milestone.funding_percentage;
-        });
-        
-        if (totalPercentage !== 100) {
-          errors.milestone_total = 'Total funding percentage must equal 100%';
-        }
-        break;
-        
-      case 3: // Documents
-        if (formData.documents.length === 0) {
-          errors.documents = 'At least one document is required';
-        }
-        break;
-    }
-    
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-  
-  // Handle next step
-  const handleNext = () => {
-    if (validateStep()) {
-      setActiveStep((prevActiveStep) => prevActiveStep + 1);
-    }
-  };
-  
-  // Handle back step
-  const handleBack = () => {
-    setActiveStep((prevActiveStep) => prevActiveStep - 1);
   };
   
   // Handle form submission
   const handleSubmit = async () => {
-    if (validateStep()) {
-      setSubmitting(true);
-      
+    if (validateCurrentStep()) {
       try {
-        // In a real app, this would call an API to submit the project
-        console.log('Project data submitted:', formData);
-        
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Redirect to projects page on success
-        navigate('/projects');
-      } catch (error) {
-        console.error('Error submitting project:', error);
-      } finally {
-        setSubmitting(false);
+        const projectId = await submitProject();
+        navigate(`/projects/${projectId}`, { 
+          state: { message: 'Project created successfully! It is now pending approval.' }
+        });
+      } catch (err) {
+        console.error('Failed to submit project:', err);
       }
     }
   };
@@ -420,20 +204,20 @@ const CreateProject: React.FC = () => {
                 label="Project Title"
                 name="title"
                 value={formData.title}
-                onChange={handleChange}
-                error={!!formErrors.title}
-                helperText={formErrors.title}
+                onChange={(e) => setFormValue('title', e.target.value)}
+                error={!!validationErrors.title}
+                helperText={validationErrors.title}
                 required
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <FormControl fullWidth error={!!formErrors.category} required>
+              <FormControl fullWidth error={!!validationErrors.category} required>
                 <InputLabel id="category-label">Category</InputLabel>
                 <Select
                   labelId="category-label"
                   name="category"
                   value={formData.category}
-                  onChange={handleCategoryChange}
+                  onChange={(e) => setFormValue('category', e.target.value)}
                   label="Category"
                 >
                   {categories.map((category) => (
@@ -442,7 +226,7 @@ const CreateProject: React.FC = () => {
                     </MenuItem>
                   ))}
                 </Select>
-                {formErrors.category && <FormHelperText>{formErrors.category}</FormHelperText>}
+                {validationErrors.category && <FormHelperText>{validationErrors.category}</FormHelperText>}
               </FormControl>
             </Grid>
             <Grid item xs={12} md={6}>
@@ -452,7 +236,7 @@ const CreateProject: React.FC = () => {
                 name="duration_months"
                 type="number"
                 value={formData.duration_months}
-                onChange={handleChange}
+                onChange={(e) => setFormValue('duration_months', parseInt(e.target.value))}
                 InputProps={{
                   inputProps: { min: 1, max: 60 },
                 }}
@@ -464,9 +248,9 @@ const CreateProject: React.FC = () => {
                 label="Short Description (200 characters max)"
                 name="short_description"
                 value={formData.short_description}
-                onChange={handleChange}
-                error={!!formErrors.short_description}
-                helperText={formErrors.short_description || `${formData.short_description.length}/200`}
+                onChange={(e) => setFormValue('short_description', e.target.value)}
+                error={!!validationErrors.short_description}
+                helperText={validationErrors.short_description || `${formData.short_description.length}/200`}
                 required
                 multiline
                 rows={2}
@@ -495,8 +279,10 @@ const CreateProject: React.FC = () => {
                         fullWidth
                         label="Name"
                         value={member.name}
-                        onChange={(e) => handleTeamMemberChange(index, 'name', e.target.value)}
+                        onChange={(e) => updateTeamMember(index, 'name', e.target.value)}
                         required={index === 0}
+                        error={!!validationErrors[`team_${index}_name`]}
+                        helperText={validationErrors[`team_${index}_name`]}
                       />
                     </Grid>
                     <Grid item xs={12} md={6}>
@@ -504,8 +290,10 @@ const CreateProject: React.FC = () => {
                         fullWidth
                         label="Role"
                         value={member.role}
-                        onChange={(e) => handleTeamMemberChange(index, 'role', e.target.value)}
+                        onChange={(e) => updateTeamMember(index, 'role', e.target.value)}
                         required={index === 0}
+                        error={!!validationErrors[`team_${index}_role`]}
+                        helperText={validationErrors[`team_${index}_role`]}
                       />
                     </Grid>
                     <Grid item xs={12}>
@@ -513,7 +301,7 @@ const CreateProject: React.FC = () => {
                         fullWidth
                         label="Bio"
                         value={member.bio}
-                        onChange={(e) => handleTeamMemberChange(index, 'bio', e.target.value)}
+                        onChange={(e) => updateTeamMember(index, 'bio', e.target.value)}
                         multiline
                         rows={2}
                       />
@@ -542,9 +330,9 @@ const CreateProject: React.FC = () => {
                 label="Full Project Description"
                 name="full_description"
                 value={formData.full_description}
-                onChange={handleChange}
-                error={!!formErrors.full_description}
-                helperText={formErrors.full_description}
+                onChange={(e) => setFormValue('full_description', e.target.value)}
+                error={!!validationErrors.full_description}
+                helperText={validationErrors.full_description}
                 required
                 multiline
                 rows={6}
@@ -556,9 +344,9 @@ const CreateProject: React.FC = () => {
                 label="Impact Statement"
                 name="impact_statement"
                 value={formData.impact_statement}
-                onChange={handleChange}
-                error={!!formErrors.impact_statement}
-                helperText={formErrors.impact_statement}
+                onChange={(e) => setFormValue('impact_statement', e.target.value)}
+                error={!!validationErrors.impact_statement}
+                helperText={validationErrors.impact_statement}
                 required
                 multiline
                 rows={3}
@@ -571,14 +359,14 @@ const CreateProject: React.FC = () => {
                 label="Target Location/Region"
                 name="target_location"
                 value={formData.target_location}
-                onChange={handleChange}
-                error={!!formErrors.target_location}
-                helperText={formErrors.target_location}
+                onChange={(e) => setFormValue('target_location', e.target.value)}
+                error={!!validationErrors.target_location}
+                helperText={validationErrors.target_location}
                 required
               />
             </Grid>
             <Grid item xs={12}>
-              <FormControl fullWidth error={!!formErrors.selected_sdgs} required>
+              <FormControl fullWidth error={!!validationErrors.selected_sdgs} required>
                 <InputLabel id="sdg-label">Sustainable Development Goals</InputLabel>
                 <Select
                   labelId="sdg-label"
@@ -600,7 +388,7 @@ const CreateProject: React.FC = () => {
                     </MenuItem>
                   ))}
                 </Select>
-                {formErrors.selected_sdgs && <FormHelperText>{formErrors.selected_sdgs}</FormHelperText>}
+                {validationErrors.selected_sdgs && <FormHelperText>{validationErrors.selected_sdgs}</FormHelperText>}
               </FormControl>
             </Grid>
           </Grid>
@@ -616,9 +404,9 @@ const CreateProject: React.FC = () => {
                 name="funding_goal"
                 type="number"
                 value={formData.funding_goal}
-                onChange={handleChange}
-                error={!!formErrors.funding_goal}
-                helperText={formErrors.funding_goal}
+                onChange={(e) => setFormValue('funding_goal', Number(e.target.value))}
+                error={!!validationErrors.funding_goal}
+                helperText={validationErrors.funding_goal}
                 required
                 InputProps={{
                   startAdornment: <InputAdornment position="start">$</InputAdornment>,
@@ -633,9 +421,9 @@ const CreateProject: React.FC = () => {
                 name="min_investment"
                 type="number"
                 value={formData.min_investment}
-                onChange={handleChange}
-                error={!!formErrors.min_investment}
-                helperText={formErrors.min_investment}
+                onChange={(e) => setFormValue('min_investment', Number(e.target.value))}
+                error={!!validationErrors.min_investment}
+                helperText={validationErrors.min_investment}
                 required
                 InputProps={{
                   startAdornment: <InputAdornment position="start">$</InputAdornment>,
@@ -648,9 +436,9 @@ const CreateProject: React.FC = () => {
               <Typography variant="h6" gutterBottom>
                 Project Milestones
               </Typography>
-              {formErrors.milestone_total && (
+              {validationErrors.milestone_total && (
                 <Typography color="error" variant="body2" sx={{ mb: 2 }}>
-                  {formErrors.milestone_total}
+                  {validationErrors.milestone_total}
                 </Typography>
               )}
               
@@ -672,9 +460,9 @@ const CreateProject: React.FC = () => {
                         fullWidth
                         label="Milestone Title"
                         value={milestone.title}
-                        onChange={(e) => handleMilestoneChange(index, 'title', e.target.value)}
-                        error={!!formErrors[`milestone_${index}_title`]}
-                        helperText={formErrors[`milestone_${index}_title`]}
+                        onChange={(e) => updateMilestone(index, 'title', e.target.value)}
+                        error={!!validationErrors[`milestone_${index}_title`]}
+                        helperText={validationErrors[`milestone_${index}_title`]}
                         required
                       />
                     </Grid>
@@ -684,9 +472,9 @@ const CreateProject: React.FC = () => {
                         label="Funding (%)"
                         type="number"
                         value={milestone.funding_percentage}
-                        onChange={(e) => handleMilestoneChange(index, 'funding_percentage', Number(e.target.value))}
-                        error={!!formErrors[`milestone_${index}_percentage`]}
-                        helperText={formErrors[`milestone_${index}_percentage`]}
+                        onChange={(e) => updateMilestone(index, 'funding_percentage', Number(e.target.value))}
+                        error={!!validationErrors[`milestone_${index}_funding_percentage`]}
+                        helperText={validationErrors[`milestone_${index}_funding_percentage`]}
                         required
                         InputProps={{
                           endAdornment: <InputAdornment position="end">%</InputAdornment>,
@@ -699,9 +487,9 @@ const CreateProject: React.FC = () => {
                         fullWidth
                         label="Milestone Description"
                         value={milestone.description}
-                        onChange={(e) => handleMilestoneChange(index, 'description', e.target.value)}
-                        error={!!formErrors[`milestone_${index}_description`]}
-                        helperText={formErrors[`milestone_${index}_description`]}
+                        onChange={(e) => updateMilestone(index, 'description', e.target.value)}
+                        error={!!validationErrors[`milestone_${index}_description`]}
+                        helperText={validationErrors[`milestone_${index}_description`]}
                         required
                         multiline
                         rows={2}
@@ -713,9 +501,9 @@ const CreateProject: React.FC = () => {
                         label="Expected Completion Date"
                         type="date"
                         value={milestone.expected_completion_date}
-                        onChange={(e) => handleMilestoneChange(index, 'expected_completion_date', e.target.value)}
-                        error={!!formErrors[`milestone_${index}_date`]}
-                        helperText={formErrors[`milestone_${index}_date`]}
+                        onChange={(e) => updateMilestone(index, 'expected_completion_date', e.target.value)}
+                        error={!!validationErrors[`milestone_${index}_expected_completion_date`]}
+                        helperText={validationErrors[`milestone_${index}_expected_completion_date`]}
                         required
                         InputLabelProps={{
                           shrink: true,
@@ -727,7 +515,7 @@ const CreateProject: React.FC = () => {
                         fullWidth
                         label="Verification Method"
                         value={milestone.verification_method}
-                        onChange={(e) => handleMilestoneChange(index, 'verification_method', e.target.value)}
+                        onChange={(e) => updateMilestone(index, 'verification_method', e.target.value)}
                         placeholder="How will this milestone be verified?"
                       />
                     </Grid>
@@ -773,9 +561,9 @@ const CreateProject: React.FC = () => {
                   />
                 </Button>
                 
-                {formErrors.documents && (
+                {validationErrors.documents && (
                   <Typography color="error" variant="body2" sx={{ mt: 1 }}>
-                    {formErrors.documents}
+                    {validationErrors.documents}
                   </Typography>
                 )}
               </UploadContainer>
@@ -813,6 +601,12 @@ const CreateProject: React.FC = () => {
         return (
           <Grid container spacing={3}>
             <Grid item xs={12}>
+              {error && (
+                <Alert severity="error" sx={{ mb: 3 }}>
+                  {error}
+                </Alert>
+              )}
+              
               <Typography variant="h6" gutterBottom>
                 Project Summary
               </Typography>
@@ -989,7 +783,7 @@ const CreateProject: React.FC = () => {
       
       <GradientDivider />
       
-      <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+      <Stepper activeStep={currentStep} sx={{ mb: 4 }}>
         {steps.map((label) => (
           <Step key={label}>
             <StepLabel>{label}</StepLabel>
@@ -998,33 +792,33 @@ const CreateProject: React.FC = () => {
       </Stepper>
       
       <Paper sx={{ p: 3, mb: 3 }}>
-        {getStepContent(activeStep)}
+        {getStepContent(currentStep)}
       </Paper>
       
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
         <Button
           variant="outlined"
-          disabled={activeStep === 0}
-          onClick={handleBack}
+          disabled={currentStep === 0}
+          onClick={prevStep}
           startIcon={<ArrowBack />}
         >
           Back
         </Button>
-        {activeStep === steps.length - 1 ? (
+        {currentStep === steps.length - 1 ? (
           <Button
             variant="contained"
             color="primary"
             onClick={handleSubmit}
-            endIcon={<Check />}
-            disabled={submitting}
+            endIcon={loading ? <CircularProgress size={20} /> : <Check />}
+            disabled={loading}
           >
-            {submitting ? 'Submitting...' : 'Submit Project'}
+            {loading ? 'Submitting...' : 'Submit Project'}
           </Button>
         ) : (
           <Button
             variant="contained"
             color="primary"
-            onClick={handleNext}
+            onClick={nextStep}
             endIcon={<ArrowForward />}
           >
             Next
@@ -1035,4 +829,4 @@ const CreateProject: React.FC = () => {
   );
 };
 
-export default CreateProject;
+export default CreateProjectWrapper;

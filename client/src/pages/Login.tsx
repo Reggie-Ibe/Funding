@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Button, 
@@ -12,35 +12,61 @@ import {
   IconButton,
   Alert,
   useTheme,
-  Divider
+  Divider,
+  CircularProgress
 } from '@mui/material';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 // Icons
 import { Visibility, VisibilityOff, Email, Lock } from '@mui/icons-material';
 
+interface LocationState {
+  from?: string;
+  message?: string;
+}
+
 const Login: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { login, error } = useAuth();
+  const location = useLocation();
+  const locationState = location.state as LocationState;
+  
+  const { login, error: authError, user } = useAuth();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(
+    locationState?.message || null
+  );
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    if (!email || !password) {
+      setError('Email and password are required');
+      return;
+    }
+    
     setLoading(true);
-    setLoginError(null);
+    setError(null);
     
     try {
       await login(email, password);
       navigate('/dashboard');
     } catch (err: any) {
-      setLoginError(err.response?.data?.message || 'Invalid email or password');
+      console.error('Login error:', err);
+      setError(err.response?.data?.message || 'Invalid email or password');
     } finally {
       setLoading(false);
     }
@@ -91,9 +117,15 @@ const Login: React.FC = () => {
             </Typography>
           </Box>
 
-          {(error || loginError) && (
+          {successMessage && (
+            <Alert severity="success" sx={{ mb: 3 }}>
+              {successMessage}
+            </Alert>
+          )}
+
+          {(authError || error) && (
             <Alert severity="error" sx={{ mb: 3 }}>
-              {error || loginError}
+              {authError || error}
             </Alert>
           )}
 
@@ -160,7 +192,11 @@ const Login: React.FC = () => {
                 fontSize: '1rem',
               }}
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? (
+                <CircularProgress size={24} color="inherit" />
+              ) : (
+                'Sign In'
+              )}
             </Button>
 
             <Divider sx={{ my: 2 }}>
@@ -173,12 +209,23 @@ const Login: React.FC = () => {
               <Grid item>
                 <Typography variant="body2" color="text.secondary">
                   Don't have an account?{' '}
-                  <Link component={RouterLink} to="/register" color="primary.main">
+                  <Link component={RouterLink} to="/register" color="primary">
                     Sign Up
                   </Link>
                 </Typography>
               </Grid>
             </Grid>
+            <Box sx={{ mt: 2, textAlign: 'center' }}>
+              <Link 
+                component={RouterLink} 
+                to="/forgot-password" 
+                color="primary"
+                underline="hover"
+                variant="body2"
+              >
+                Forgot password?
+              </Link>
+            </Box>
           </form>
         </Paper>
       </Container>

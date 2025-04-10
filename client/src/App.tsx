@@ -1,13 +1,11 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import theme from './theme';
 
-// Theme
-import forgeTheme from './themes/forgeTheme';
-
-// Auth Context
+// Context Providers
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ProjectsProvider } from './contexts/ProjectsContext';
 
 // Pages
 import Login from './pages/Login';
@@ -20,72 +18,106 @@ import Profile from './pages/Profile';
 import AdminPanel from './pages/AdminPanel';
 import NotFound from './pages/NotFound';
 
-// Create a client for React Query
-const queryClient = new QueryClient();
+// Route guard component
+const ProtectedRoute = ({ children, requiredRoles = [] }: { children: JSX.Element, requiredRoles?: string[] }) => {
+  const { user, loading } = useAuth();
 
-// Protected Route component
-const ProtectedRoute: React.FC<{ element: React.ReactNode; allowedRoles?: string[] }> = ({ 
-  element, 
-  allowedRoles = [] 
-}) => {
-  const { isAuthenticated, user } = useAuth();
-  
-  if (!isAuthenticated) {
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!user) {
     return <Navigate to="/login" />;
   }
-  
-  if (allowedRoles.length > 0 && user && !allowedRoles.includes(user.role)) {
+
+  if (requiredRoles.length > 0 && !requiredRoles.includes(user.role)) {
     return <Navigate to="/dashboard" />;
   }
-  
-  return <>{element}</>;
+
+  return children;
 };
 
-function App() {
+const App = () => {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={forgeTheme}>
-        <CssBaseline />
-        <AuthProvider>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <AuthProvider>
+        <ProjectsProvider>
           <Router>
             <Routes>
-              {/* Public Routes */}
+              {/* Public routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               
-              {/* Protected Routes */}
-              <Route path="/dashboard" element={
-                <ProtectedRoute element={<Dashboard />} />
-              } />
-              <Route path="/projects" element={
-                <ProtectedRoute element={<Projects />} />
-              } />
-              <Route path="/projects/create" element={
-                <ProtectedRoute element={<CreateProject />} allowedRoles={['Innovator']} />
-              } />
-              <Route path="/projects/:id" element={
-                <ProtectedRoute element={<ProjectDetails />} />
-              } />
-              <Route path="/profile" element={
-                <ProtectedRoute element={<Profile />} />
-              } />
+              {/* Protected routes */}
+              <Route 
+                path="/dashboard" 
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                } 
+              />
               
-              {/* Admin Routes */}
-              <Route path="/admin" element={
-                <ProtectedRoute element={<AdminPanel />} allowedRoles={['Admin', 'EscrowManager']} />
-              } />
+              <Route 
+                path="/projects" 
+                element={
+                  <ProtectedRoute>
+                    <Projects />
+                  </ProtectedRoute>
+                } 
+              />
               
-              {/* Redirect root to dashboard if authenticated, otherwise login */}
-              <Route path="/" element={<Navigate to="/dashboard" />} />
+              <Route 
+                path="/projects/:id" 
+                element={
+                  <ProtectedRoute>
+                    <ProjectDetails />
+                  </ProtectedRoute>
+                } 
+              />
               
-              {/* 404 Page */}
+              <Route 
+                path="/projects/create" 
+                element={
+                  <ProtectedRoute requiredRoles={['Innovator']}>
+                    <CreateProject />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              <Route 
+                path="/profile" 
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              <Route 
+                path="/admin" 
+                element={
+                  <ProtectedRoute requiredRoles={['Admin', 'EscrowManager']}>
+                    <AdminPanel />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              {/* Redirect root to dashboard or login */}
+              <Route 
+                path="/" 
+                element={<Navigate to="/dashboard" replace />} 
+              />
+              
+              {/* 404 route */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Router>
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+        </ProjectsProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
-}
+};
 
 export default App;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -29,6 +29,7 @@ import {
   InputAdornment,
   useTheme,
   styled,
+  Alert,
 } from '@mui/material';
 import {
   AttachMoney,
@@ -49,6 +50,7 @@ import {
 } from '@mui/icons-material';
 import AppLayout from '../components/layout/AppLayout';
 import { useAuth } from '../contexts/AuthContext';
+import { projectService, investmentService } from '../services/ApiService';
 
 // Styled components
 const GradientDivider = styled(Divider)(({ theme }) => ({
@@ -83,136 +85,31 @@ const TabPanel = (props: TabPanelProps) => {
   );
 };
 
-// Mock project data (would come from API in real app)
-const projectData = {
-  id: 'proj_001',
-  title: 'Smart Agriculture System',
-  short_description: 'Sustainable farming using IoT sensors and AI for crop optimization',
-  full_description: `
-    The Smart Agriculture System is an innovative solution that combines IoT sensors, AI-driven analytics, and mobile technology to help farmers optimize crop yields while reducing resource usage.
-    
-    By deploying a network of affordable sensors throughout fields, farmers can monitor soil moisture, nutrient levels, and environmental conditions in real-time. Our AI algorithms process this data to provide actionable insights and recommendations, helping farmers make data-driven decisions about irrigation, fertilization, and pest control.
-    
-    The system is designed to be affordable and accessible for smallholder farmers in developing regions, with a focus on improving productivity while promoting sustainable farming practices. Initial pilot tests have shown yield increases of up to 30% while reducing water usage by 20%.
-  `,
-  category: 'AgriTech',
-  status: 'seeking_funding',
-  funding_goal: 50000,
-  current_funding: 15000,
-  min_investment: 1000,
-  investors_count: 7,
-  created_at: '2025-02-15',
-  duration_months: 18,
-  target_location: 'Sub-Saharan Africa (Kenya, Tanzania, Uganda)',
-  selected_sdgs: ['SDG 2: Zero Hunger', 'SDG 12: Responsible Consumption and Production'],
-  impact_statement: `
-    Our Smart Agriculture System addresses critical challenges in food security, environmental sustainability, and economic development:
-    
-    1. Increases crop yields by 20-30% through optimized farming practices
-    2. Reduces water usage by 15-25% through precision irrigation
-    3. Decreases fertilizer and pesticide use by monitoring soil conditions
-    4. Improves income for smallholder farmers
-    5. Creates rural tech jobs through system implementation and maintenance
-    
-    By making precision agriculture accessible to smallholder farmers, we can help feed growing populations while protecting natural resources.
-  `,
-  milestones: [
-    {
-      id: 'mile_001',
-      title: 'Sensor Prototype Development',
-      description: 'Develop and test low-cost, solar-powered sensor units that can monitor soil moisture, temperature, and nutrient levels.',
-      expected_completion_date: '2025-05-15',
-      status: 'pending',
-      funding_percentage: 20,
-      verification_method: 'Working prototype demonstration and technical documentation',
-    },
-    {
-      id: 'mile_002',
-      title: 'AI Algorithm Development',
-      description: 'Develop machine learning algorithms to analyze sensor data and provide actionable recommendations to farmers.',
-      expected_completion_date: '2025-08-15',
-      status: 'pending',
-      funding_percentage: 25,
-      verification_method: 'Algorithm validation with test data sets and accuracy reports',
-    },
-    {
-      id: 'mile_003',
-      title: 'Mobile App Development',
-      description: 'Create a user-friendly mobile application that works offline and displays insights in simple, visual formats.',
-      expected_completion_date: '2025-10-30',
-      status: 'pending',
-      funding_percentage: 20,
-      verification_method: 'Functional app demonstration and user testing reports',
-    },
-    {
-      id: 'mile_004',
-      title: 'Field Testing',
-      description: 'Deploy the system in 10 pilot farms across different regions to validate performance and gather feedback.',
-      expected_completion_date: '2025-03-15',
-      status: 'pending',
-      funding_percentage: 25,
-      verification_method: 'Field test results and farmer testimonials',
-    },
-    {
-      id: 'mile_005',
-      title: 'Production & Distribution Setup',
-      description: 'Establish production and distribution channels for system components in target markets.',
-      expected_completion_date: '2025-07-30',
-      status: 'pending',
-      funding_percentage: 10,
-      verification_method: 'Supply chain documentation and first batch of production units',
-    },
-  ],
-  team_members: [
-    {
-      name: 'John Doe',
-      role: 'Founder & Agricultural Technologist',
-      bio: 'Former agricultural extension officer with 12 years of experience in sustainable farming practices. MSc in Agricultural Engineering.',
-      avatar: '/static/images/avatars/john.jpg',
-    },
-    {
-      name: 'Sarah Johnson',
-      role: 'Lead Engineer',
-      bio: 'IoT specialist with expertise in sensor networks and embedded systems. Previously worked at AgriTech Solutions.',
-      avatar: '/static/images/avatars/sarah.jpg',
-    },
-    {
-      name: 'Michael Chen',
-      role: 'AI & Data Scientist',
-      bio: 'PhD in Machine Learning with focus on agricultural applications. Led data science team at Innovation Labs.',
-      avatar: '/static/images/avatars/michael.jpg',
-    },
-  ],
-  documents: [
-    {
-      name: 'Business Plan.pdf',
-      size: 2450000,
-      type: 'application/pdf',
-    },
-    {
-      name: 'Technical Specifications.pdf',
-      size: 1840000,
-      type: 'application/pdf',
-    },
-    {
-      name: 'Market Analysis.pptx',
-      size: 3560000,
-      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    },
-  ],
-  updates: [
-    {
-      date: '2025-03-01',
-      title: 'First Prototype Completed',
-      content: 'We\'ve completed the initial version of our soil moisture sensor prototype, achieving a battery life of over 6 months on a single charge.',
-    },
-    {
-      date: '2025-02-20',
-      title: 'New Partnership Announced',
-      content: 'We\'re excited to announce a partnership with FarmTech Solutions to help scale our distribution network across East Africa.',
-    },
-  ],
-};
+// Interface for project data
+interface ProjectData {
+  project_id: string;
+  title: string;
+  short_description: string;
+  full_description: string;
+  category: string;
+  status: string;
+  funding_goal: number;
+  current_funding: number;
+  min_investment: number;
+  investors_count: number;
+  created_at: string;
+  duration_months: number;
+  target_location: string;
+  selected_sdgs: string[];
+  impact_statement: string;
+  innovator_id: string;
+  innovator_name?: string;
+  // Additional properties
+  milestones: any[];
+  team_members: any[];
+  documents: any[];
+  updates: any[];
+}
 
 const ProjectDetails: React.FC = () => {
   const theme = useTheme();
@@ -220,11 +117,44 @@ const ProjectDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   
+  const [projectData, setProjectData] = useState<ProjectData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [tabValue, setTabValue] = useState(0);
+  
   const [investDialogOpen, setInvestDialogOpen] = useState(false);
-  const [investAmount, setInvestAmount] = useState(projectData.min_investment);
+  const [investAmount, setInvestAmount] = useState(0);
   const [confirmInvestDialogOpen, setConfirmInvestDialogOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [investmentSuccess, setInvestmentSuccess] = useState(false);
+
+  // Fetch project data
+  useEffect(() => {
+    const fetchProjectData = async () => {
+      if (!id) return;
+      
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // Fetch project details
+        const projectDetails = await projectService.getProjectById(id);
+        
+        // Set initial invest amount to minimum investment
+        setInvestAmount(projectDetails.min_investment);
+        
+        // Set project data
+        setProjectData(projectDetails);
+      } catch (err: any) {
+        console.error('Error fetching project details:', err);
+        setError(err.response?.data?.message || 'Failed to load project details. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchProjectData();
+  }, [id]);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -236,7 +166,9 @@ const ProjectDetails: React.FC = () => {
   
   const handleInvestDialogClose = () => {
     setInvestDialogOpen(false);
-    setInvestAmount(projectData.min_investment);
+    if (projectData) {
+      setInvestAmount(projectData.min_investment);
+    }
   };
   
   const handleProceedToConfirm = () => {
@@ -249,28 +181,66 @@ const ProjectDetails: React.FC = () => {
   };
   
   const handleConfirmInvestment = async () => {
+    if (!projectData || !id) return;
+    
     setProcessing(true);
     
     try {
-      // In a real app, this would make an API call to process the investment
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Call investment API
+      await investmentService.investInProject(id, {
+        amount: investAmount
+      });
       
-      // Close dialog and show success state
-      setConfirmInvestDialogOpen(false);
+      // Show success message
+      setInvestmentSuccess(true);
       
-      // Refresh project data
-      // This would fetch updated project data in a real app
-    } catch (error) {
+      // Refresh project data after short delay
+      setTimeout(async () => {
+        const updatedProject = await projectService.getProjectById(id);
+        setProjectData(updatedProject);
+        setConfirmInvestDialogOpen(false);
+        setInvestmentSuccess(false);
+      }, 2000);
+    } catch (error: any) {
       console.error('Error processing investment:', error);
+      setError(error.response?.data?.message || 'Failed to process investment. Please try again.');
     } finally {
       setProcessing(false);
     }
   };
   
   const getFundingProgress = () => {
+    if (!projectData) return 0;
     return (projectData.current_funding / projectData.funding_goal) * 100;
   };
   
+  if (loading) {
+    return (
+      <AppLayout>
+        <Box display="flex" justifyContent="center" alignItems="center" height="50vh">
+          <CircularProgress />
+        </Box>
+      </AppLayout>
+    );
+  }
+  
+  if (error || !projectData) {
+    return (
+      <AppLayout>
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error || 'Failed to load project details. Please try again.'}
+        </Alert>
+        <Button
+          variant="contained"
+          startIcon={<ArrowBack />}
+          onClick={() => navigate('/projects')}
+        >
+          Back to Projects
+        </Button>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
       <Box sx={{ mb: 4 }}>
@@ -316,9 +286,9 @@ const ProjectDetails: React.FC = () => {
                       <Chip
                         label={projectData.status.replace('_', ' ')}
                         color={
-                          projectData.status === 'seeking_funding'
+                          projectData.status === 'SeekingFunding' || projectData.status === 'seeking_funding'
                             ? 'primary'
-                            : projectData.status === 'partially_funded'
+                            : projectData.status === 'PartiallyFunded' || projectData.status === 'partially_funded'
                             ? 'warning'
                             : 'success'
                         }
@@ -393,7 +363,9 @@ const ProjectDetails: React.FC = () => {
                   </Box>
                 </Box>
                 
-                {user?.role === 'Investor' && projectData.status !== 'fully_funded' && (
+                {user?.role === 'Investor' && 
+                 (projectData.status === 'SeekingFunding' || projectData.status === 'seeking_funding' || 
+                  projectData.status === 'PartiallyFunded' || projectData.status === 'partially_funded') && (
                   <Button
                     variant="contained"
                     color="primary"
@@ -435,7 +407,7 @@ const ProjectDetails: React.FC = () => {
                   Documents
                 </Typography>
                 <List>
-                  {projectData.documents.map((doc, index) => (
+                  {projectData.documents && projectData.documents.map((doc, index) => (
                     <ListItem 
                       key={index} 
                       sx={{ 
@@ -450,8 +422,8 @@ const ProjectDetails: React.FC = () => {
                         </Avatar>
                       </ListItemAvatar>
                       <ListItemText
-                        primary={doc.name}
-                        secondary={`${(doc.size / 1024 / 1024).toFixed(2)} MB`}
+                        primary={doc.document_name || doc.name}
+                        secondary={`${((doc.file_size || doc.size) / 1024 / 1024).toFixed(2)} MB`}
                       />
                       <Button startIcon={<Download />}>Download</Button>
                     </ListItem>
@@ -462,13 +434,12 @@ const ProjectDetails: React.FC = () => {
               {/* Team Tab */}
               <TabPanel value={tabValue} index={1}>
                 <Grid container spacing={3}>
-                  {projectData.team_members.map((member, index) => (
+                  {projectData.team_members && projectData.team_members.map((member, index) => (
                     <Grid item xs={12} md={6} key={index}>
                       <Card sx={{ height: '100%' }}>
                         <CardContent>
                           <Box display="flex" alignItems="center" mb={2}>
                             <Avatar 
-                              src={member.avatar} 
                               sx={{ width: 60, height: 60, mr: 2 }}
                             >
                               {member.name.charAt(0)}
@@ -494,9 +465,9 @@ const ProjectDetails: React.FC = () => {
                   <Typography variant="subtitle1" gutterBottom>
                     Project Timeline
                   </Typography>
-                  {projectData.milestones.map((milestone, index) => (
+                  {projectData.milestones && projectData.milestones.map((milestone, index) => (
                     <Box
-                      key={milestone.id}
+                      key={milestone.milestone_id}
                       sx={{
                         position: 'relative',
                         mb: 3,
@@ -518,7 +489,9 @@ const ProjectDetails: React.FC = () => {
                           width: 16,
                           height: 16,
                           borderRadius: '50%',
-                          bgcolor: milestone.status === 'completed' ? theme.palette.success.main : theme.palette.primary.main,
+                          bgcolor: milestone.status === 'Completed' || milestone.status === 'Approved' 
+                            ? theme.palette.success.main 
+                            : theme.palette.primary.main,
                           border: `2px solid ${theme.palette.background.paper}`,
                         }}
                       />
@@ -528,11 +501,11 @@ const ProjectDetails: React.FC = () => {
                             {milestone.title}
                           </Typography>
                           <Typography variant="body2" color="text.secondary" gutterBottom>
-                            Expected: {new Date(milestone.expected_completion_date).toLocaleDateString()}
+                            Expected: {new Date(milestone.target_completion_date).toLocaleDateString()}
                           </Typography>
                         </Box>
                         <Chip
-                          label={`${milestone.funding_percentage}%`}
+                          label={`${milestone.funding_required ? ((milestone.funding_required / projectData.funding_goal) * 100).toFixed(0) : ''}%`}
                           color="primary"
                           variant="outlined"
                         />
@@ -557,7 +530,7 @@ const ProjectDetails: React.FC = () => {
               
               {/* Updates Tab */}
               <TabPanel value={tabValue} index={4}>
-                {projectData.updates.map((update, index) => (
+                {projectData.updates && projectData.updates.map((update, index) => (
                   <Paper
                     key={index}
                     sx={{
@@ -569,7 +542,7 @@ const ProjectDetails: React.FC = () => {
                     <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                       <Typography variant="h6">{update.title}</Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {new Date(update.date).toLocaleDateString()}
+                        {new Date(update.created_at || update.date).toLocaleDateString()}
                       </Typography>
                     </Box>
                     <Divider sx={{ mb: 2 }} />
@@ -588,17 +561,16 @@ const ProjectDetails: React.FC = () => {
               </Typography>
               <Box display="flex" alignItems="center" mb={2}>
                 <Avatar 
-                  src={projectData.team_members[0].avatar}
                   sx={{ width: 50, height: 50, mr: 2 }}
                 >
-                  {projectData.team_members[0].name.charAt(0)}
+                  {projectData.innovator_name ? projectData.innovator_name.charAt(0) : 'U'}
                 </Avatar>
                 <Box>
                   <Typography variant="subtitle1">
-                    {projectData.team_members[0].name}
+                    {projectData.innovator_name || 'Project Creator'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {projectData.team_members[0].role}
+                    Innovator
                   </Typography>
                 </Box>
               </Box>
@@ -627,19 +599,19 @@ const ProjectDetails: React.FC = () => {
                 <ListItem sx={{ px: 0 }}>
                   <ListItemText
                     primary="Funding Goal"
-                    secondary={`$${projectData.funding_goal.toLocaleString()}`}
+                    secondary={`${projectData.funding_goal.toLocaleString()}`}
                   />
                 </ListItem>
                 <ListItem sx={{ px: 0 }}>
                   <ListItemText
                     primary="Current Funding"
-                    secondary={`$${projectData.current_funding.toLocaleString()} (${getFundingProgress().toFixed(0)}%)`}
+                    secondary={`${projectData.current_funding.toLocaleString()} (${getFundingProgress().toFixed(0)}%)`}
                   />
                 </ListItem>
                 <ListItem sx={{ px: 0 }}>
                   <ListItemText
                     primary="Minimum Investment"
-                    secondary={`$${projectData.min_investment.toLocaleString()}`}
+                    secondary={`${projectData.min_investment.toLocaleString()}`}
                   />
                 </ListItem>
                 <ListItem sx={{ px: 0 }}>
@@ -712,7 +684,7 @@ const ProjectDetails: React.FC = () => {
                   onClick={() => navigate('/projects/proj_004')}
                 >
                   <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: theme.palette.tertiary.main }}>
+                    <Avatar sx={{ bgcolor: theme.palette.tertiary ? theme.palette.tertiary.main : '#FF9800' }}>
                       <BusinessCenter />
                     </Avatar>
                   </ListItemAvatar>
@@ -769,12 +741,20 @@ const ProjectDetails: React.FC = () => {
         <Dialog open={confirmInvestDialogOpen} onClose={handleConfirmDialogClose}>
           <DialogTitle>Confirm Your Investment</DialogTitle>
           <DialogContent>
-            <DialogContentText gutterBottom>
-              Please confirm your investment of ${investAmount.toLocaleString()} in {projectData.title}.
-            </DialogContentText>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-              By confirming, you agree to our investment terms and conditions. Funds will be held in escrow and released according to the milestone schedule.
-            </Typography>
+            {investmentSuccess ? (
+              <Alert severity="success" sx={{ mb: 2 }}>
+                Investment successful! Your funds have been allocated to this project.
+              </Alert>
+            ) : (
+              <>
+                <DialogContentText gutterBottom>
+                  Please confirm your investment of ${investAmount.toLocaleString()} in {projectData.title}.
+                </DialogContentText>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                  By confirming, you agree to our investment terms and conditions. Funds will be held in escrow and released according to the milestone schedule.
+                </Typography>
+              </>
+            )}
           </DialogContent>
           <DialogActions>
             <Button onClick={handleConfirmDialogClose} disabled={processing}>
@@ -784,7 +764,7 @@ const ProjectDetails: React.FC = () => {
               onClick={handleConfirmInvestment}
               variant="contained"
               color="primary"
-              disabled={processing}
+              disabled={processing || investmentSuccess}
               startIcon={processing ? <CircularProgress size={20} /> : null}
             >
               {processing ? 'Processing...' : 'Confirm Investment'}

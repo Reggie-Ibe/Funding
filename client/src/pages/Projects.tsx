@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -20,6 +20,9 @@ import {
   Pagination,
   useTheme,
   styled,
+  CircularProgress,
+  Alert,
+  SelectChangeEvent
 } from '@mui/material';
 import {
   Search,
@@ -33,6 +36,7 @@ import {
 } from '@mui/icons-material';
 import AppLayout from '../components/layout/AppLayout';
 import { useAuth } from '../contexts/AuthContext';
+import { useProjects } from '../contexts/ProjectsContext';
 
 // Styled components
 const GradientDivider = styled(Divider)(({ theme }) => ({
@@ -41,92 +45,11 @@ const GradientDivider = styled(Divider)(({ theme }) => ({
   marginBottom: theme.spacing(2),
 }));
 
-// Sample data for projects
-const sampleProjects = [
-  {
-    id: 'proj_001',
-    title: 'Smart Agriculture System',
-    description: 'Sustainable farming using IoT sensors and AI for crop optimization',
-    category: 'AgriTech',
-    funding_goal: 50000,
-    current_funding: 10000,
-    status: 'seeking_funding',
-    innovator: 'John Doe',
-    creation_date: '2025-02-15',
-    image: '/static/images/projects/agriculture.jpg',
-    sdgs: ['SDG 2', 'SDG 12'],
-  },
-  {
-    id: 'proj_002',
-    title: 'Clean Water Initiative',
-    description: 'Water purification technology for rural communities using renewable energy',
-    category: 'CleanTech',
-    funding_goal: 75000,
-    current_funding: 56250,
-    status: 'partially_funded',
-    innovator: 'Sarah Johnson',
-    creation_date: '2025-01-20',
-    image: '/static/images/projects/water.jpg',
-    sdgs: ['SDG 6', 'SDG 7'],
-  },
-  {
-    id: 'proj_003',
-    title: 'Solar Micro-Grids',
-    description: 'Decentralized solar power solutions for off-grid communities',
-    category: 'Energy',
-    funding_goal: 120000,
-    current_funding: 120000,
-    status: 'fully_funded',
-    innovator: 'Michael Brown',
-    creation_date: '2025-01-05',
-    image: '/static/images/projects/solar.jpg',
-    sdgs: ['SDG 7', 'SDG 13'],
-  },
-  {
-    id: 'proj_004',
-    title: 'Healthcare AI Diagnostics',
-    description: 'Machine learning platform for early disease detection in low-resource settings',
-    category: 'HealthTech',
-    funding_goal: 200000,
-    current_funding: 80000,
-    status: 'partially_funded',
-    innovator: 'Emily Chen',
-    creation_date: '2025-02-28',
-    image: '/static/images/projects/healthcare.jpg',
-    sdgs: ['SDG 3', 'SDG 10'],
-  },
-  {
-    id: 'proj_005',
-    title: 'Waste to Energy Converter',
-    description: 'Technology that transforms organic waste into biogas for cooking and electricity',
-    category: 'CleanTech',
-    funding_goal: 90000,
-    current_funding: 27000,
-    status: 'seeking_funding',
-    innovator: 'Robert Miller',
-    creation_date: '2025-03-01',
-    image: '/static/images/projects/waste.jpg',
-    sdgs: ['SDG 7', 'SDG 12'],
-  },
-  {
-    id: 'proj_006',
-    title: 'Digital Education Platform',
-    description: 'Offline-capable learning software for schools without reliable internet',
-    category: 'EdTech',
-    funding_goal: 65000,
-    current_funding: 65000,
-    status: 'fully_funded',
-    innovator: 'Jessica Williams',
-    creation_date: '2025-01-10',
-    image: '/static/images/projects/education.jpg',
-    sdgs: ['SDG 4', 'SDG 10'],
-  },
-];
-
 const Projects: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { projects, loading, error, filters, setFilters, fetchProjects } = useProjects();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
@@ -137,42 +60,52 @@ const Projects: React.FC = () => {
   
   const projectsPerPage = 6;
 
-  // Get unique categories from sample data
-  const categories = ['All', ...Array.from(new Set(sampleProjects.map(project => project.category)))];
+  // Categories from the API
+  const [categories, setCategories] = useState<string[]>(['All']);
   
-  // Filter and sort projects
-  const filteredProjects = sampleProjects.filter(project => {
-    const matchesSearch = project.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                        project.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = categoryFilter === 'All' || project.category === categoryFilter;
-    const matchesStatus = statusFilter === 'All' || project.status === statusFilter;
+  // Effect to apply filters when they change
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      // Build filter object
+      const newFilters = {
+        search: searchQuery,
+        category: categoryFilter !== 'All' ? categoryFilter : undefined,
+        status: statusFilter !== 'All' ? statusFilter : undefined,
+        sortBy
+      };
+      
+      setFilters(newFilters);
+      fetchProjects(newFilters);
+      setPage(1); // Reset to first page when filters change
+    }, 500); // Debounce filter changes
     
-    return matchesSearch && matchesCategory && matchesStatus;
-  });
-  
-  const sortedProjects = [...filteredProjects].sort((a, b) => {
-    switch (sortBy) {
-      case 'newest':
-        return new Date(b.creation_date).getTime() - new Date(a.creation_date).getTime();
-      case 'oldest':
-        return new Date(a.creation_date).getTime() - new Date(b.creation_date).getTime();
-      case 'most_funded':
-        return (b.current_funding / b.funding_goal) - (a.current_funding / a.funding_goal);
-      case 'least_funded':
-        return (a.current_funding / a.funding_goal) - (b.current_funding / b.funding_goal);
-      case 'highest_goal':
-        return b.funding_goal - a.funding_goal;
-      case 'lowest_goal':
-        return a.funding_goal - b.funding_goal;
-      default:
-        return 0;
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, categoryFilter, statusFilter, sortBy, setFilters, fetchProjects]);
+
+  // Fetch unique categories on first load
+  useEffect(() => {
+    const getCategories = async () => {
+      try {
+        // In a real implementation, you'd call an API endpoint for categories
+        // For now, extract unique categories from projects
+        const uniqueCategories = Array.from(
+          new Set(projects.map(project => project.category))
+        );
+        setCategories(['All', ...uniqueCategories]);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+    
+    if (projects.length > 0) {
+      getCategories();
     }
-  });
+  }, [projects]);
   
-  // Paginate projects
+  // Pagination
   const indexOfLastProject = page * projectsPerPage;
   const indexOfFirstProject = indexOfLastProject - projectsPerPage;
-  const currentProjects = sortedProjects.slice(indexOfFirstProject, indexOfLastProject);
+  const currentProjects = projects.slice(indexOfFirstProject, indexOfLastProject);
   
   const handlePageChange = (event: React.ChangeEvent<unknown>, value: number) => {
     setPage(value);
@@ -180,11 +113,14 @@ const Projects: React.FC = () => {
   };
   
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
+      case 'seekingfunding':
       case 'seeking_funding':
         return theme.palette.primary.main;
+      case 'partiallyfunded':
       case 'partially_funded':
         return theme.palette.warning.main;
+      case 'fullyfunded':
       case 'fully_funded':
         return theme.palette.success.main;
       default:
@@ -198,6 +134,18 @@ const Projects: React.FC = () => {
   
   const getFundingProgress = (current: number, goal: number) => {
     return (current / goal) * 100;
+  };
+
+  const handleCategoryChange = (event: SelectChangeEvent<string>) => {
+    setCategoryFilter(event.target.value);
+  };
+
+  const handleStatusChange = (event: SelectChangeEvent<string>) => {
+    setStatusFilter(event.target.value);
+  };
+
+  const handleSortChange = (event: SelectChangeEvent<string>) => {
+    setSortBy(event.target.value);
   };
 
   return (
@@ -262,7 +210,7 @@ const Projects: React.FC = () => {
                 <Select
                   labelId="sort-by-label"
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  onChange={handleSortChange}
                   label="Sort By"
                 >
                   <MenuItem value="newest">Newest</MenuItem>
@@ -285,7 +233,7 @@ const Projects: React.FC = () => {
                     <Select
                       labelId="category-filter-label"
                       value={categoryFilter}
-                      onChange={(e) => setCategoryFilter(e.target.value)}
+                      onChange={handleCategoryChange}
                       label="Category"
                     >
                       {categories.map(category => (
@@ -300,13 +248,13 @@ const Projects: React.FC = () => {
                     <Select
                       labelId="status-filter-label"
                       value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
+                      onChange={handleStatusChange}
                       label="Status"
                     >
                       <MenuItem value="All">All</MenuItem>
-                      <MenuItem value="seeking_funding">Seeking Funding</MenuItem>
-                      <MenuItem value="partially_funded">Partially Funded</MenuItem>
-                      <MenuItem value="fully_funded">Fully Funded</MenuItem>
+                      <MenuItem value="SeekingFunding">Seeking Funding</MenuItem>
+                      <MenuItem value="PartiallyFunded">Partially Funded</MenuItem>
+                      <MenuItem value="FullyFunded">Fully Funded</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
@@ -315,7 +263,20 @@ const Projects: React.FC = () => {
           )}
         </Box>
         
-        {currentProjects.length === 0 ? (
+        {/* Loading and Error states */}
+        {loading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+            <CircularProgress />
+          </Box>
+        )}
+        
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
+        
+        {!loading && !error && currentProjects.length === 0 ? (
           <Box sx={{ textAlign: 'center', my: 8 }}>
             <Typography variant="h5" color="text.secondary" gutterBottom>
               No projects found
@@ -328,7 +289,7 @@ const Projects: React.FC = () => {
           <>
             <Grid container spacing={3}>
               {currentProjects.map((project) => (
-                <Grid item xs={12} sm={6} md={4} key={project.id}>
+                <Grid item xs={12} sm={6} md={4} key={project.project_id}>
                   <Card
                     sx={{
                       height: '100%',
@@ -393,7 +354,7 @@ const Projects: React.FC = () => {
                           WebkitBoxOrient: 'vertical',
                         }}
                       >
-                        {project.description}
+                        {project.short_description}
                       </Typography>
                       
                       <Box sx={{ mt: 'auto' }}>
@@ -441,16 +402,21 @@ const Projects: React.FC = () => {
                             variant="outlined"
                             fullWidth
                             startIcon={<Visibility />}
-                            onClick={() => handleProjectClick(project.id)}
+                            onClick={() => handleProjectClick(project.project_id)}
                           >
                             Details
                           </Button>
-                          {user?.role === 'Investor' && project.status !== 'fully_funded' && (
+                          {user?.role === 'Investor' && 
+                           (project.status === 'SeekingFunding' || 
+                            project.status === 'seeking_funding' || 
+                            project.status === 'PartiallyFunded' ||
+                            project.status === 'partially_funded') && (
                             <Button
                               variant="contained"
                               color="secondary"
                               fullWidth
                               startIcon={<AttachMoney />}
+                              onClick={() => handleProjectClick(project.project_id)}
                             >
                               Invest
                             </Button>
@@ -463,10 +429,10 @@ const Projects: React.FC = () => {
               ))}
             </Grid>
             
-            {sortedProjects.length > projectsPerPage && (
+            {projects.length > projectsPerPage && (
               <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
                 <Pagination
-                  count={Math.ceil(sortedProjects.length / projectsPerPage)}
+                  count={Math.ceil(projects.length / projectsPerPage)}
                   page={page}
                   onChange={handlePageChange}
                   color="primary"
