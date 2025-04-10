@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: funding-platform-db
+    environment:
+      POSTGRES_DB: funding_platform
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Mount SQL init script if you want to initialize the database
+      - ./Schema_update.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - funding-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API Server
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: funding-platform-api
+    environment:
+      - PORT=5050
+      - NODE_ENV=development
+      - JWT_SECRET=group_43
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=funding_platform
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+    ports:
+      - "5050:5050"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    networks:
+      - funding-network
+    command: npm run dev
+
+  # Frontend Client (React app)
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: funding-platform-client
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    networks:
+      - funding-network
+    depends_on:
+      - api
+    environment:
+      - REACT_APP_API_URL=http://localhost:5050/api
+
+networks:
+  funding-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

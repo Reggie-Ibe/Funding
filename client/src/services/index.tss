@@ -1,7 +1,7 @@
 // index.ts (updated)
 // Export all services for easy imports
 export { default as MilestoneService } from './MilestoneService';
-export { default as ProjectService } from './ProjectService';
+export { default as ProjectService } from './ProjectService.tss';
 export { default as DocumentService } from './DocumentService';
 export { default as DashboardService } from './DashboardService';
 export { default as AdminService } from './AdminService';
@@ -13,5 +13,5 @@ export { default as NotificationService } from './NotificationService';
 
 // Export types for reuse
 export type { MilestoneData } from './MilestoneService';
-export type { ProjectData } from './ProjectService';
+export type { ProjectData } from './ProjectService.tss';
 export type { DocumentData } from './DocumentService';
